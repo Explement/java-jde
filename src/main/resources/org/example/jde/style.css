@@ -1,0 +1,35 @@
+#codeArea {
+    -fx-font-family: "JetBrainsMono-Regular.ttf";
+    -fx-font-size: 14;
+}
+#menuBar {
+    -fx-font-family: "JetBrainsMono-Regular.ttf";
+    -fx-font-size: 14;
+}
+.keyword {
+    -fx-fill: rgb(132, 23, 166);
+}
+.paren {
+    -fx-fill: rgb(252, 119, 18);
+}
+.brace {
+    -fx-fill: rgb(21, 94, 92);
+}
+.bracket {
+    -fx-fill: rgb(2, 115, 32);
+}
+.semicolon {
+    -fx-fill: rgb(0, 0, 0);
+}
+.string {
+    -fx-fill: rgb(2, 15, 115);
+}
+.comment {
+    -fx-fill: rgb(4, 149, 201);
+}
+.integer {
+    -fx-fill: rgb(201, 33, 4);
+}
+.type {
+    -fx-fill: rgb(199, 255, 114);
+}
