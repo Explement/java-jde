@@ -1,9 +1,7 @@
 package org.example.jde.controller;
 
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
-import javafx.scene.control.ButtonType;
-import javafx.scene.layout.Priority;
+import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.example.jde.service.CompilerService;
@@ -11,9 +9,11 @@ import org.example.jde.service.FileIOService;
 import org.example.jde.service.SyntaxHighlighterService;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
+
 import org.fxmisc.richtext.LineNumberFactory;
 
 import java.io.*;
+import java.time.LocalTime;
 import java.util.Optional;
 
 public class MainController {
@@ -25,6 +25,7 @@ public class MainController {
 
     // JavaFX Objects
     private CodeArea codeArea;
+    private TextArea output;
     @FXML private  VBox mainVBox;
 
     // Tracks file changes w/o being edited
@@ -34,19 +35,51 @@ public class MainController {
 
     @FXML
     private void initialize() { // Self-explanatory
-        // Initialize the new CodeArea
+        // Initialize the new CodeArea and Output
         codeArea = new CodeArea();
+        output = new TextArea();
 
-        // Set a LineNumberFactory and its FXML ID
+        // Make output uneditable
+        output.setEditable(false);
+
+        // Create a ContextMenu for the output
+        ContextMenu contextMenu = new ContextMenu();
+
+        // Clear the output
+        MenuItem clearItem = new MenuItem("Clear");
+        clearItem.setOnAction(e -> output.clear());
+
+        // Copy selected text
+        MenuItem copyItem = new MenuItem("Copy");
+        copyItem.setOnAction(e -> output.copy());
+
+        // Separator
+        SeparatorMenuItem separatorMenuItem = new SeparatorMenuItem();
+
+        // Select all text
+        MenuItem selectAllItem = new MenuItem("Select All");
+        selectAllItem.setOnAction(e -> output.selectAll());
+
+        // Add all items and set the ContextMenu
+        contextMenu.getItems().addAll(clearItem, copyItem, separatorMenuItem, selectAllItem);
+        output.setContextMenu(contextMenu);
+
+        // Set a LineNumberFactory and a FXML ID for the CodeArea
         codeArea.setParagraphGraphicFactory(LineNumberFactory.get(codeArea));
         codeArea.setId("codeArea");
 
         // Create a new ScrollPane for the CodeArea
         VirtualizedScrollPane<CodeArea> scrollPane =  new VirtualizedScrollPane<>(codeArea);
 
-        // Add it to the VBox and make sure it takes up space
-        mainVBox.getChildren().add(scrollPane);
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        // Add both to the VBox and make sure it takes up space
+        mainVBox.getChildren().addAll(scrollPane, output);
+
+        // Add a listener to split the ratios between the CodeArea and Output
+        mainVBox.heightProperty().addListener((obs, oldVal, newVal) -> { // Everytime height is changed in the VBox
+            double height = newVal.doubleValue();
+            scrollPane.setPrefHeight(height * 0.7);
+            output.setPrefHeight(height * 0.3);
+        });
 
         // Add a listener for changes to apply syntax highlighting and dirty check
         codeArea.textProperty().addListener((obs, oldText, newText) -> { // Everytime code is changed
@@ -175,9 +208,16 @@ public class MainController {
 
         StringBuilder output =  compilerService.compileAndRun(javaFile, dir, fileName, className, editedFile);
 
-        // System.out.println("Captured Output: " + output.toString());
+        // Print it to the running command (e.g. CMD)
         for (String s :  output.toString().split("\n")) { // For every String (line) in StringBuilder
-            System.out.println("> " + s);
+            // Get the time
+            LocalTime currentTime = LocalTime.now();
+
+            // Print out the time and line of the provided StringBuilder
+            System.out.println(currentTime + " > " + s);
+            this.output.appendText(currentTime + " > " + s + "\n");
+            // Scroll to bottom of output
+            this.output.setScrollTop(Double.MAX_VALUE);
         }
     }
 }
