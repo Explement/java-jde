@@ -91,23 +91,31 @@ public class MainController {
     @FXML
     protected void onNewJavaFile() { // Triggers when user clicks 'New Java File' under the MenuBar
         if (dirty && !codeArea.getText().isEmpty()) { // Prompt a save if user is currently on a dirty file
-            promptSaveFile();
+            boolean promptSave = promptSaveFile();
+            if (promptSave) { // If move on to new file and save old
+                // Default name (not absolute)
+                editedFile = "unnamed_file.java";
+
+                // Clear codeArea for the new file
+                codeArea.clear();
+            }
         }
-
-        // Default name (not absolute)
-        editedFile = "unnamed_file.java";
-
-        // Clear codeArea for the new file
-        codeArea.clear();
     }
 
-    private void promptSaveFile() { // Prompts user to save via the 'dirty' variable
+    private boolean promptSaveFile() { // Prompts user to save via the 'dirty' variable
+        // True = Save, False = Continue Editing
         // Create a new 'Alert' with the confirmation UI
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
 
-        // Set header and context text for the UI
+        // Set header text for prompt
         alert.setHeaderText("Would you like to save the file?");
-        alert.setContentText("unnamedfile.java");
+
+        // Perform null check and set context text for prompt
+        if (editedFile == null) {
+            editedFile = "unnamed_file.java";
+        }
+        alert.setContentText(new File(editedFile).getName()); // Create a new file and get its name
+
 
         // Wait for alert to show
         Optional<ButtonType> result = alert.showAndWait();
@@ -115,8 +123,10 @@ public class MainController {
         if (result.isPresent() && result.get() == ButtonType.OK) { // Save and set dirty to false
             saveFile();
             dirty = false;
-        } else { // Don't save and move on
-            System.out.println("Not saving");
+            return true; // Move on, save
+        } else { // Don't save and continue editing
+            System.out.println("Continuing");
+            return false; // Continue, don't save
         }
     }
 
@@ -206,7 +216,7 @@ public class MainController {
         String fileName =  javaFile.getName();
         String className = fileName.substring(0, fileName.lastIndexOf('.'));
 
-        StringBuilder output =  compilerService.compileAndRun(javaFile, dir, fileName, className, editedFile);
+        StringBuilder output =  compilerService.compileAndRun(javaFile, editedFile);
 
         // Print it to the running command (e.g. CMD)
         for (String s :  output.toString().split("\n")) { // For every String (line) in StringBuilder
@@ -219,5 +229,35 @@ public class MainController {
             // Scroll to bottom of output
             this.output.setScrollTop(Double.MAX_VALUE);
         }
+    }
+
+    @FXML
+    protected void undo() { // Triggers when user clicks 'Undo' under the MenuBar
+        codeArea.undo();
+    }
+
+    @FXML
+    protected void redo() { // Triggers when user clicks 'Redo' under the MenuBar
+        codeArea.redo();
+    }
+
+    @FXML
+    protected void delete() { // Triggers when user clicks 'Delete' under the MenuBar
+        codeArea.replaceSelection("");
+    }
+
+    @FXML
+    protected void clear() { // Triggers when user clicks 'Clear' under the MenuBar
+        codeArea.clear();
+    }
+
+    @FXML
+    protected void copy() { // Triggers when user clicks 'Copy' under the MenuBar
+        codeArea.copy();
+    }
+
+    @FXML
+    protected void paste() { // Triggers when user clicks 'Paste' under the MenuBar
+        codeArea.paste();
     }
 }

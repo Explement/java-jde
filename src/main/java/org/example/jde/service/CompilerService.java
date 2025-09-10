@@ -6,7 +6,14 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 
 public class CompilerService {
-    public StringBuilder compileAndRun(File javaFile, String dir, String fileName, String className, String editedFile) throws IOException, InterruptedException {
+    public StringBuilder compileAndRun(File javaFile, String editedFile) throws IOException, InterruptedException {
+        // Directory of the Java File
+        String dir = javaFile.getParent();
+        // Name of the Java File
+        String fileName =  javaFile.getName();
+        // Main class of the Java File
+        String className = fileName.substring(0, fileName.lastIndexOf('.'));
+
         // Compile editedFile and wait for the exit code
         Process compile = new ProcessBuilder("javac", editedFile)
                 .directory(new File(dir))
