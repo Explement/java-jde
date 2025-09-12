@@ -1,7 +1,10 @@
 package org.example.jde.controller;
 
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.example.jde.service.CompilerService;
@@ -15,6 +18,8 @@ import org.fxmisc.richtext.LineNumberFactory;
 import java.io.*;
 import java.time.LocalTime;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainController {
 
@@ -32,6 +37,8 @@ public class MainController {
     private boolean dirty;
     // File being edited absolute path
     private String editedFile;
+    // Pattern for whitespace (tabs, spaces) at start of line
+    private static final Pattern whiteSpace = Pattern.compile( "^\\s+" );
 
     @FXML
     private void initialize() { // Self-explanatory
@@ -85,6 +92,20 @@ public class MainController {
         codeArea.textProperty().addListener((obs, oldText, newText) -> { // Everytime code is changed
             dirty = true;
             codeArea.setStyleSpans(0, highlighterService.computeHighlighting(newText));
+        });
+
+        // Add a listener for changes to apply auto indentation
+        codeArea.setOnKeyPressed(keyEvent -> {
+            if (keyEvent.getCode() == KeyCode.ENTER) { // Enter key
+                // Get caret position and current paragraph
+                int caretPosition = codeArea.getCaretPosition();
+                int currentParagraph = codeArea.getCurrentParagraph();
+                // Match to pattern
+                Matcher m0 = whiteSpace.matcher( codeArea.getParagraph( currentParagraph-1 ).getSegments().get(0));
+                if ( m0.find() ) { // If it gets a match, insert tab to fill in
+                    Platform.runLater( () -> codeArea.insertText( caretPosition, m0.group() ) );
+                }
+            }
         });
     }
 
@@ -211,11 +232,7 @@ public class MainController {
         // Create a new file via the editedFile variable
         File javaFile = new  File(editedFile);
 
-        // Set up directory, non-absolute File name, and the File's class name
-        String dir = javaFile.getParent();
-        String fileName =  javaFile.getName();
-        String className = fileName.substring(0, fileName.lastIndexOf('.'));
-
+        // Create an output (StringBuilder) for the compiled code
         StringBuilder output =  compilerService.compileAndRun(javaFile, editedFile);
 
         // Print it to the running command (e.g. CMD)
@@ -234,11 +251,13 @@ public class MainController {
     @FXML
     protected void undo() { // Triggers when user clicks 'Undo' under the MenuBar
         codeArea.undo();
+        dirty = true;
     }
 
     @FXML
     protected void redo() { // Triggers when user clicks 'Redo' under the MenuBar
         codeArea.redo();
+        dirty = true;
     }
 
     @FXML
