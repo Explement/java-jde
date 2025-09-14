@@ -3,6 +3,8 @@ module org.example.jde {
     requires javafx.fxml;
     requires org.fxmisc.richtext;
     requires org.fxmisc.flowless;
+    requires java.desktop;
+    requires org.fxmisc.undo;
 
 
     opens org.explement.jde to javafx.fxml;

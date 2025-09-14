@@ -13,10 +13,10 @@ import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 
 import org.fxmisc.richtext.LineNumberFactory;
+import org.fxmisc.undo.UndoManager;
 
 import java.io.*;
 import java.time.LocalTime;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,23 +27,39 @@ public class MainController {
     private final FileIOService fileIOService = new FileIOService();
     private final CompilerService compilerService = new CompilerService();
 
+    // Enum for promptSaveFile()
+    enum promptUserChoice {
+        SAVE,
+        DONT_SAVE,
+        CANCEL
+    }
+
     // JavaFX Objects
     private CodeArea codeArea;
     private TextArea output;
     @FXML private  VBox mainVBox;
 
     // Tracks file changes w/o being edited
-    private boolean dirty;
+    public boolean dirty;
     // File being edited absolute path
     private String editedFile;
     // Pattern for whitespace (tabs, spaces) at start of line
     private static final Pattern whiteSpace = Pattern.compile( "^\\s+" );
+    // Enable dirty check
+    private boolean dirtyChecker = true;
+    // Enable highlight check
+    private boolean highlightChecker = true;
+    // Undo manager for CodeArea
+    UndoManager<?> undoManager;
 
     @FXML
-    private void initialize() { // Self-explanatory
+    private void initialize() { // On JavaFX init
         // Initialize the new CodeArea and Output
         codeArea = new CodeArea();
         output = new TextArea();
+
+        // Set codeArea UndoManager
+        undoManager = codeArea.getUndoManager();
 
         // Make output uneditable
         output.setEditable(false);
@@ -89,8 +105,12 @@ public class MainController {
 
         // Add a listener for changes to apply syntax highlighting and dirty check
         codeArea.textProperty().addListener((obs, oldText, newText) -> { // Everytime code is changed
-            dirty = true;
-            codeArea.setStyleSpans(0, highlighterService.computeHighlighting(newText));
+            if (dirtyChecker) { // Dirty checker
+                dirty = true;
+            }
+            if (highlightChecker) { // Highlight checker
+                codeArea.setStyleSpans(0, highlighterService.computeHighlighting(newText));
+            }
         });
 
         // Add a listener for changes to apply auto indentation
@@ -111,57 +131,85 @@ public class MainController {
     @FXML
     protected void onNewJavaFile() { // Triggers when user clicks 'New Java File' under the MenuBar
         if (dirty && !codeArea.getText().isEmpty()) { // Prompt a save if user is currently on a dirty file
-            boolean promptSave = promptSaveFile();
-            if (promptSave) { // If move on to new file and save old
-                // Default name (not absolute)
-                editedFile = "unnamed_file.java";
-
-                // Clear codeArea for the new file
-                codeArea.clear();
+            promptUserChoice promptSave = promptSaveFile();
+            if (promptSave == promptUserChoice.SAVE) { // Save and create new file
+                saveFile();
+                newJavaFile();
+            } else if (promptSave == promptUserChoice.DONT_SAVE) {
+                newJavaFile();
+            } else if (promptSave == promptUserChoice.CANCEL) {
+                // Continue
             }
         }
     }
+    private void newJavaFile() {
+        // Default name (not absolute)
+        editedFile = "unnamed_file.java";
 
-    private boolean promptSaveFile() { // Prompts user to save via the 'dirty' variable
-        // True = Save, False = Continue Editing
+        // Clear codeArea for the new file
+        codeArea.clear();
+
+        // Set dirty
+        dirty = false;
+    }
+    private promptUserChoice promptSaveFile() { // Prompts user to save
         // Create a new 'Alert' with the confirmation UI
         Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
 
-        // Set header text for prompt
-        alert.setHeaderText("Would you like to save the file?");
+        // Set config for alert
+        alert.setTitle("Unsaved Changes");
+        alert.setHeaderText("You have unsaved changes.");
+        alert.setContentText("Would you like to save changes?");
 
-        // Perform null check and set context text for prompt
-        if (editedFile == null) {
-            editedFile = "unnamed_file.java";
-        }
-        alert.setContentText(new File(editedFile).getName()); // Create a new file and get its name
+        // Instantiate buttons
+        ButtonType saveAndExit = new ButtonType("Save & Exit");
+        ButtonType exitWithoutSaving = new ButtonType("Exit Without Saving");
+        ButtonType cancel = new ButtonType("Cancel");
 
+        // Add buttons to alert
+        alert.getButtonTypes().setAll(saveAndExit, exitWithoutSaving, cancel);
 
-        // Wait for alert to show
-        Optional<ButtonType> result = alert.showAndWait();
+        // Final userChoice
+        promptUserChoice[] userChoice = new promptUserChoice[1];
+        userChoice[0] = promptUserChoice.DONT_SAVE; // Default
 
-        if (result.isPresent() && result.get() == ButtonType.OK) { // Save and set dirty to false
-            saveFile();
-            dirty = false;
-            return true; // Move on, save
-        } else { // Don't save and continue editing
-            System.out.println("Continuing");
-            return false; // Continue, don't save
-        }
+        // Wait for results
+        alert.showAndWait().ifPresent(type -> {
+            if (type == saveAndExit) { // Save and exit
+                userChoice[0] = promptUserChoice.SAVE;
+            } else if (type == cancel) { // Cancel
+                userChoice[0] = promptUserChoice.CANCEL;
+            }
+            // exitWithoutSaving is already set as Default
+        });
+
+        // Return userChoice
+        return userChoice[0];
     }
 
     @FXML
-    protected void saveFile() { // Triggers when user clicks 'Save File' under the MenuBar
+    public void saveFile() { // Triggers when user clicks 'Save File' under the MenuBar
+        if (!dirty) { // Make sure file needs to save
+            return;
+        }
+
         if (editedFile == null ||!new File(editedFile).isAbsolute()) { // Make user save file under proper directory if file is not absolute
             saveFileAs();
+            if (editedFile == null) { // If not selected
+                return;
+            }
         }
 
         // Save the file using FileIOService
         File file = new File(editedFile);
         fileIOService.saveFile(codeArea.getText(), file);
 
+        // Mark undoManager saved position
+        undoManager.mark();
+
         // Print file's absolute path and set dirty to false
-        System.out.println("Saved file: " + file.getAbsolutePath());
+        printOutput("Saved file: " + file.getAbsolutePath());
+        appendOutput("Saved file: " + file.getAbsolutePath());
         dirty = false;
     }
 
@@ -185,13 +233,24 @@ public class MainController {
             fileIOService.saveFile(codeArea.getText(), file);
 
             // Print file's absolute path via editedFile and set dirty to false
-            System.out.println("File saved: " + editedFile);
+            printOutput("File saved: " + editedFile);
+            appendOutput("File saved: " + editedFile);
             dirty = false;
         }
     }
 
     @FXML
     protected void loadFile() { // Triggers when user clicks 'Open File' under the MenuBar
+        if (dirty) { // Check if file needs to be saved
+            promptUserChoice userChoice = promptSaveFile();
+            if (userChoice == promptUserChoice.SAVE) { // Save file and continue editing
+                saveFile();
+            } else if (userChoice == promptUserChoice.CANCEL) { // Cancel and don't save
+                return;
+            } else if (userChoice == promptUserChoice.DONT_SAVE) { // Continue and don't save file
+            }
+        }
+
         // Create a new FileChooser and set it's title
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Load File");
@@ -204,7 +263,8 @@ public class MainController {
         // Create a new variable with the chosen file
         File file = fileChooser.showOpenDialog(mainVBox.getScene().getWindow());
         if  (file == null) { // If user didn't press on a valid file/folder
-            System.out.println("No file selected");
+            printOutput("No file selected");
+            appendOutput("No file selected");
             return;
         }
 
@@ -212,9 +272,15 @@ public class MainController {
         codeArea.clear();
         editedFile = file.getAbsolutePath();
 
+        // Print information
+        printOutput("Loaded file: " + editedFile);
+        appendOutput("Loaded file: " + editedFile);
+
         // Set dirty to false and replace the codeArea text with the new File's text
+        dirtyChecker = false;
         dirty = false;
         codeArea.replaceText(fileIOService.loadFile(file));
+        dirtyChecker = true;
     }
 
     @FXML
@@ -222,8 +288,12 @@ public class MainController {
         if (dirty || editedFile == null) { // Triggers if file is dirty or there is no saved file being edited
             saveFile();
             if (editedFile == null) {
+                LocalTime currentTime = getTime();
+
                 // Cancelled save
-                System.out.println("No file selected");
+                printOutput("No file selected");
+                appendOutput("No file selected");
+
                 return;
             }
         }
@@ -236,12 +306,12 @@ public class MainController {
 
         // Print it to the running command (e.g. CMD)
         for (String s :  output.toString().split("\n")) { // For every String (line) in StringBuilder
-            // Get the time
-            LocalTime currentTime = LocalTime.now();
+            LocalTime currentTime = getTime();
 
             // Print out the time and line of the provided StringBuilder
-            System.out.println(currentTime + " > " + s);
-            this.output.appendText(currentTime + " > " + s + "\n");
+            printOutput(s);
+            appendOutput(s);
+
             // Scroll to bottom of output
             this.output.setScrollTop(Double.MAX_VALUE);
         }
@@ -250,13 +320,13 @@ public class MainController {
     @FXML
     protected void undo() { // Triggers when user clicks 'Undo' under the MenuBar
         codeArea.undo();
-        dirty = true;
+        dirty = !undoManager.isAtMarkedPosition(); // Invert because if it is at marked position it's not dirty
     }
 
     @FXML
     protected void redo() { // Triggers when user clicks 'Redo' under the MenuBar
         codeArea.redo();
-        dirty = true;
+        dirty = !undoManager.isAtMarkedPosition(); // Invert because if it is at marked position it's not dirty
     }
 
     @FXML
@@ -277,5 +347,17 @@ public class MainController {
     @FXML
     protected void paste() { // Triggers when user clicks 'Paste' under the MenuBar
         codeArea.paste();
+    }
+
+    private LocalTime getTime() { // Get local time
+        return LocalTime.now();
+    }
+
+    private void appendOutput(String content) { // Append output with template
+        output.appendText(getTime() + " > " +  content + "\n");
+    }
+
+    private void printOutput(String content) { // Print output with template
+        System.out.println(getTime() + " > " +  content); // (no need for newline because of ln)
     }
 }
