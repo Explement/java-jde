@@ -1,4 +1,4 @@
-package org.example.jde.service;
+package org.explement.jde.service;
 
 import java.util.Collection;
 import java.util.Collections;

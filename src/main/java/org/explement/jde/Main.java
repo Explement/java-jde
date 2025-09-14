@@ -1,4 +1,4 @@
-package org.example.jde;
+package org.explement.jde;
 
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;

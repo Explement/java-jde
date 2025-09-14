@@ -1,15 +1,14 @@
-package org.example.jde.controller;
+package org.explement.jde.controller;
 
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
-import org.example.jde.service.CompilerService;
-import org.example.jde.service.FileIOService;
-import org.example.jde.service.SyntaxHighlighterService;
+import org.explement.jde.service.CompilerService;
+import org.explement.jde.service.FileIOService;
+import org.explement.jde.service.SyntaxHighlighterService;
 import org.fxmisc.flowless.VirtualizedScrollPane;
 import org.fxmisc.richtext.CodeArea;
 
