@@ -39,18 +39,16 @@ public class MainController {
     private TextArea output;
     @FXML private  VBox mainVBox;
 
-    // Tracks file changes w/o being edited
-    public boolean dirty;
     // File being edited absolute path
     private String editedFile;
     // Pattern for whitespace (tabs, spaces) at start of line
     private static final Pattern whiteSpace = Pattern.compile( "^\\s+" );
-    // Enable dirty check
-    private boolean dirtyChecker = true;
     // Enable highlight check
     private boolean highlightChecker = true;
     // Undo manager for CodeArea
-    UndoManager<?> undoManager;
+    private UndoManager<?> undoManager;
+    // Last saved content
+    private String savedContent;
 
     @FXML
     private void initialize() { // On JavaFX init
@@ -105,9 +103,6 @@ public class MainController {
 
         // Add a listener for changes to apply syntax highlighting and dirty check
         codeArea.textProperty().addListener((obs, oldText, newText) -> { // Everytime code is changed
-            if (dirtyChecker) { // Dirty checker
-                dirty = true;
-            }
             if (highlightChecker) { // Highlight checker
                 codeArea.setStyleSpans(0, highlighterService.computeHighlighting(newText));
             }
@@ -126,20 +121,20 @@ public class MainController {
                 }
             }
         });
+
+        newJavaFile();
     }
 
     @FXML
     protected void onNewJavaFile() { // Triggers when user clicks 'New Java File' under the MenuBar
-        if (dirty && !codeArea.getText().isEmpty()) { // Prompt a save if user is currently on a dirty file
+        if (isDirty() && !codeArea.getText().isEmpty()) { // Prompt a save if user is currently on a dirty file
             promptUserChoice promptSave = promptSaveFile();
             if (promptSave == promptUserChoice.SAVE) { // Save and create new file
                 saveFile();
-                newJavaFile();
-            } else if (promptSave == promptUserChoice.DONT_SAVE) {
-                newJavaFile();
             } else if (promptSave == promptUserChoice.CANCEL) {
-                // Continue
+                return;
             }
+            newJavaFile();
         }
     }
     private void newJavaFile() {
@@ -149,8 +144,8 @@ public class MainController {
         // Clear codeArea for the new file
         codeArea.clear();
 
-        // Set dirty
-        dirty = false;
+        // Put empty space into savedContent for new Java file
+        savedContent = codeArea.getText();
     }
     private promptUserChoice promptSaveFile() { // Prompts user to save
         // Create a new 'Alert' with the confirmation UI
@@ -189,7 +184,7 @@ public class MainController {
 
     @FXML
     public void saveFile() { // Triggers when user clicks 'Save File' under the MenuBar
-        if (!dirty) { // Make sure file needs to save
+        if (!isDirty()) { // Make sure file needs to save
             return;
         }
 
@@ -204,13 +199,15 @@ public class MainController {
         File file = new File(editedFile);
         fileIOService.saveFile(codeArea.getText(), file);
 
+        // Put saved contents into savedContent
+        savedContent = codeArea.getText();
+
         // Mark undoManager saved position
         undoManager.mark();
 
-        // Print file's absolute path and set dirty to false
+        // Print file's absolute path
         printOutput("Saved file: " + file.getAbsolutePath());
         appendOutput("Saved file: " + file.getAbsolutePath());
-        dirty = false;
     }
 
     @FXML
@@ -232,16 +229,18 @@ public class MainController {
             editedFile = file.getAbsolutePath();
             fileIOService.saveFile(codeArea.getText(), file);
 
-            // Print file's absolute path via editedFile and set dirty to false
+            // Put saved contents into savedContent
+            savedContent = codeArea.getText();
+
+            // Print file's absolute path via editedFile
             printOutput("File saved: " + editedFile);
             appendOutput("File saved: " + editedFile);
-            dirty = false;
         }
     }
 
     @FXML
     protected void loadFile() { // Triggers when user clicks 'Open File' under the MenuBar
-        if (dirty) { // Check if file needs to be saved
+        if (isDirty()) { // Check if file needs to be saved
             promptUserChoice userChoice = promptSaveFile();
             if (userChoice == promptUserChoice.SAVE) { // Save file and continue editing
                 saveFile();
@@ -276,16 +275,16 @@ public class MainController {
         printOutput("Loaded file: " + editedFile);
         appendOutput("Loaded file: " + editedFile);
 
-        // Set dirty to false and replace the codeArea text with the new File's text
-        dirtyChecker = false;
-        dirty = false;
+        // Replace the codeArea text with the new File's text
         codeArea.replaceText(fileIOService.loadFile(file));
-        dirtyChecker = true;
+
+        // Put saved contents into savedContent
+        savedContent = codeArea.getText();
     }
 
     @FXML
     protected void runJavaFile() throws IOException, InterruptedException { // Triggers when user clicks 'Compile' under the MenuBar
-        if (dirty || editedFile == null) { // Triggers if file is dirty or there is no saved file being edited
+        if (isDirty() || editedFile == null) { // Triggers if file is dirty or there is no saved file being edited
             saveFile();
             if (editedFile == null) {
                 LocalTime currentTime = getTime();
@@ -320,13 +319,11 @@ public class MainController {
     @FXML
     protected void undo() { // Triggers when user clicks 'Undo' under the MenuBar
         codeArea.undo();
-        dirty = !undoManager.isAtMarkedPosition(); // Invert because if it is at marked position it's not dirty
     }
 
     @FXML
     protected void redo() { // Triggers when user clicks 'Redo' under the MenuBar
         codeArea.redo();
-        dirty = !undoManager.isAtMarkedPosition(); // Invert because if it is at marked position it's not dirty
     }
 
     @FXML
@@ -360,4 +357,14 @@ public class MainController {
     private void printOutput(String content) { // Print output with template
         System.out.println(getTime() + " > " +  content); // (no need for newline because of ln)
     }
+
+    public boolean isDirty() {
+        return !codeArea.getText().equals(savedContent);
+    }
+
+    @FXML
+    protected void debugDirty() {
+        System.out.println(isDirty());
+    }
+
 }

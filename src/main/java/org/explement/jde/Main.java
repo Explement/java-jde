@@ -25,7 +25,7 @@ public class Main extends Application {
         MainController controller = fxmlLoader.getController();
 
         stage.setOnCloseRequest(event -> { // On app close
-            if (controller.dirty) { // If there are unsaved changes
+            if (controller.isDirty()) { // If there are unsaved changes
                 // Make new alert with type CONFIRMATION
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
 
