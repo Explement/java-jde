@@ -145,11 +145,12 @@ public class MainController {
         userChoice[0] = promptUserChoice.DONT_SAVE;
 
         result.ifPresent(type -> {
-            if (type == saveAndExit) {
+            if (type == saveAndExit) { // Save and exit
                 userChoice[0] = promptUserChoice.SAVE;
-            } else if (type == cancel) {
+            } else if (type == cancel) { // Cancel
                 userChoice[0] = promptUserChoice.CANCEL;
             }
+            // Exit without saving (no exceptions)
         });
 
         return userChoice[0];
@@ -261,5 +262,5 @@ public class MainController {
     public boolean isDirty() { return !codeArea.getText().equals(savedContent); }
 
     @FXML
-    protected void debugDirty() { System.out.println(isDirty()); }
+    protected void debugDirty() { System.out.println(isDirty()); } // TODO: TEMPORARY METHOD
 }

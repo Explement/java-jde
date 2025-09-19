@@ -6,6 +6,7 @@ module org.example.jde {
     requires java.desktop;
     requires org.fxmisc.undo;
     requires javafx.graphics;
+    requires org.example.jde;
 
 
     opens org.explement.jde to javafx.fxml;

@@ -17,7 +17,7 @@ public class CompilerService {
                 .directory(new File(dir))
                 .start();
         int compileResult = compile.waitFor();
-        if (compileResult != 0) { // Compilation failed
+        if (compileResult != 0) {
             System.out.println("Compilation failed");
             return new StringBuilder("Compilation failed");
         }

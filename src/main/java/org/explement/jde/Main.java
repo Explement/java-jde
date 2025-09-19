@@ -9,8 +9,10 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 import org.explement.jde.controller.MainController;
+import org.explement.jde.util.AlertUtils;
 
 import java.io.IOException;
+import java.util.Optional;
 
 public class Main extends Application {
     @Override
@@ -21,29 +23,23 @@ public class Main extends Application {
         scene.getStylesheets().add(Main.class.getResource("style.css").toExternalForm());
         Font.loadFont(Main.class.getResourceAsStream("JetBrainsMono-Regular.ttf"), 12);
 
-        // Load controller via fxml
         MainController controller = fxmlLoader.getController();
 
-        stage.setOnCloseRequest(event -> { // On app close
-            if (controller.isDirty()) { // If there are unsaved changes
-                // Make new alert with type CONFIRMATION
+        stage.setOnCloseRequest(event -> {
+            if (controller.isDirty()) {
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
 
-                // Alert config
-                alert.setTitle("Unsaved Changes");
-                alert.setHeaderText("You have unsaved changes.");
-                alert.setContentText("Do you want to save before exiting?");
+                String title = "Unsaved Changes";
+                String header = "You have unsaved changes.";
+                String content = "Do you want to save before exiting?";
 
-                // Instantiate buttons
                 ButtonType saveAndExit = new ButtonType("Save & Exit");
                 ButtonType exitWithoutSaving = new ButtonType("Exit Without Saving");
                 ButtonType cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
 
-                // Add buttons to alert
-                alert.getButtonTypes().setAll(saveAndExit, exitWithoutSaving, cancel);
+                Optional<ButtonType> result = AlertUtils.createConfirmation(title, header, content, saveAndExit, exitWithoutSaving, cancel);
 
-                // Wait for results
-                alert.showAndWait().ifPresent(type -> {
+                result.ifPresent(type -> {
                     if (type == saveAndExit) { // Save and exit
                         controller.saveFile();
                     } else if (type == cancel) { // Cancel
