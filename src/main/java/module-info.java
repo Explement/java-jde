@@ -5,6 +5,7 @@ module org.example.jde {
     requires org.fxmisc.flowless;
     requires java.desktop;
     requires org.fxmisc.undo;
+    requires javafx.graphics;
 
 
     opens org.explement.jde to javafx.fxml;

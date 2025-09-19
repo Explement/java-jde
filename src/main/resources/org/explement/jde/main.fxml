@@ -27,8 +27,8 @@
                           </items>
                         </Menu>
                         <SeparatorMenuItem mnemonicParsing="false" />
-                        <MenuItem mnemonicParsing="false" onAction="#loadFile" text="Open File" />
-                        <MenuItem disable="true" mnemonicParsing="false" text="Open Folder" />
+                        <MenuItem mnemonicParsing="false" onAction="#loadFile" text="Load File" />
+                        <MenuItem disable="true" mnemonicParsing="false" text="Load Folder" />
                         <SeparatorMenuItem mnemonicParsing="false" />
                         <MenuItem mnemonicParsing="false" onAction="#saveFile" text="Save">
                            <accelerator>
