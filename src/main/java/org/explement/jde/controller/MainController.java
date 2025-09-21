@@ -4,8 +4,10 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
+import org.explement.jde.model.FileState;
 import org.explement.jde.service.CompilerService;
 import org.explement.jde.service.FileIOService;
 import org.explement.jde.service.SyntaxHighlighterService;
@@ -20,6 +22,8 @@ import org.fxmisc.richtext.LineNumberFactory;
 import org.fxmisc.undo.UndoManager;
 
 import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -40,19 +44,28 @@ public class MainController {
 
     // JavaFX Objects
     private CodeArea codeArea;
-    private TextArea output;
+    public TextArea output;
     @FXML private VBox mainVBox;
+    @FXML private HBox navigationBar;
 
     // File being edited absolute path
     private String editedFile;
     // Compile WHITESPACE_Pattern from RegexUtils
     private static final Pattern whiteSpace = Pattern.compile(RegexUtils.WHITESPACE_PATTERN);
     // Enable highlight check
-    private boolean highlightChecker = true;
+    private final boolean highlightChecker = true;
     // Undo manager for CodeArea
     private UndoManager<?> undoManager;
-    // Last saved content
-    private String savedContent;
+    // File cache (avoid loading each time)
+    Map<String, FileState> fileCache = new HashMap<>();
+    // Number counter for default name (unnamed_file.java)
+    private int unnamedIndex = 0;
+    // Current edited file's content
+    private String currentContent;
+    // Tracker for currentContent
+    private boolean currentContentTracker = true;
+    // All the navigation buttons
+    private final Map<String, Button> navButtons = new HashMap<>();
 
     @FXML
     private void initialize() {
@@ -91,9 +104,24 @@ public class MainController {
             output.setPrefHeight(height * 0.3);
         });
 
+        newJavaFile(); // Create before the listener
+
         codeArea.textProperty().addListener((obs, oldText, newText) -> {
+            FileState fileState = fileCache.get(editedFile);
+            if (fileState == null) {
+                return;
+            }
+
+            if (currentContentTracker) {
+                currentContent = newText;
+                fileState.setContent(newText);
+            }
+
+            Button button = navButtons.get(editedFile);
+            dirtyMarkerCheck(fileState, button);
+
             if (highlightChecker) {
-                codeArea.setStyleSpans(0, highlighterService.computeHighlighting(newText));
+                updateSyntaxHighlighting(newText);
             }
         });
 
@@ -108,26 +136,35 @@ public class MainController {
             }
         });
 
-        newJavaFile();
     }
 
     @FXML
     protected void onNewJavaFile() {
-        if (isDirty() && !codeArea.getText().isEmpty()) {
+        FileState fileState = fileCache.get(editedFile);
+        if (fileState.isDirty() && !codeArea.getText().isEmpty()) {
             promptUserChoice promptSave = promptSaveFile();
             if (promptSave == promptUserChoice.SAVE) {
                 saveFile();
             } else if (promptSave == promptUserChoice.CANCEL) {
                 return;
             }
-            newJavaFile();
         }
+        newJavaFile();
     }
 
     private void newJavaFile() {
-        editedFile = "unnamed_file.java";
+        if (unnamedIndex == 0) {
+            editedFile = "unnamed_file.java";
+            unnamedIndex=1;
+        } else {
+            editedFile = "unnamed_file" + unnamedIndex + ".java";
+            unnamedIndex++;
+        }
+
         codeArea.clear();
-        savedContent = codeArea.getText();
+        newNavBarButton(editedFile);
+
+        fileCache.put(editedFile, new FileState("", ""));
     }
 
     private promptUserChoice promptSaveFile() {
@@ -158,7 +195,8 @@ public class MainController {
 
     @FXML
     public void saveFile() {
-        if (!isDirty()) return;
+        FileState fileState = fileCache.get(editedFile);
+        if (!fileState.isDirty()) return;
 
         if (editedFile == null || !new File(editedFile).isAbsolute()) {
             saveFileAs();
@@ -168,8 +206,11 @@ public class MainController {
         File file = new File(editedFile);
         fileIOService.saveFile(codeArea.getText(), file);
 
-        savedContent = codeArea.getText();
+        String savedContent = codeArea.getText();
         undoManager.mark();
+
+        fileCache.put(editedFile, new FileState(currentContent, savedContent));
+        updateNavButtonMark(editedFile);
 
         printOutput("Saved file: " + file.getAbsolutePath());
         appendOutput("Saved file: " + file.getAbsolutePath());
@@ -180,9 +221,12 @@ public class MainController {
         FileChooser fileChooser = FileChooserUtils.createSaveJavaFileChooser();
         File file = fileChooser.showSaveDialog(mainVBox.getScene().getWindow());
         if (file != null) {
+            updateNavButtonPath(editedFile, file.getAbsolutePath()); // old path, and new path
             editedFile = file.getAbsolutePath();
             fileIOService.saveFile(codeArea.getText(), file);
-            savedContent = codeArea.getText();
+            String savedContent = codeArea.getText();
+            fileCache.put(editedFile, new FileState(currentContent, savedContent));
+            updateNavButtonMark(editedFile);
             printOutput("File saved: " + editedFile);
             appendOutput("File saved: " + editedFile);
         }
@@ -190,7 +234,8 @@ public class MainController {
 
     @FXML
     protected void loadFile() {
-        if (isDirty()) {
+        FileState fileState = fileCache.get(editedFile);
+        if (fileState.isDirty()) {
             promptUserChoice userChoice = promptSaveFile();
             if (userChoice == promptUserChoice.SAVE) saveFile();
             else if (userChoice == promptUserChoice.CANCEL) return;
@@ -209,12 +254,21 @@ public class MainController {
         printOutput("Loaded file: " + editedFile);
         appendOutput("Loaded file: " + editedFile);
         codeArea.replaceText(fileIOService.loadFile(file));
-        savedContent = codeArea.getText();
+
+
+        String savedContent = codeArea.getText();
+        currentContent = savedContent;
+
+        fileCache.put(editedFile, new FileState(currentContent, savedContent));
+
+        updateSyntaxHighlighting(currentContent);
+        newNavBarButton(editedFile);
     }
 
     @FXML
     protected void runJavaFile() throws IOException, InterruptedException {
-        if (isDirty() || editedFile == null) {
+        FileState fileState = fileCache.get(editedFile);
+        if (fileState.isDirty() || editedFile == null) {
             saveFile();
             if (editedFile == null) {
                 printOutput("No file selected");
@@ -259,8 +313,81 @@ public class MainController {
         System.out.println(TimeUtils.now() + " > " + content);
     }
 
-    public boolean isDirty() { return !codeArea.getText().equals(savedContent); }
-
     @FXML
-    protected void debugDirty() { System.out.println(isDirty()); } // TODO: TEMPORARY METHOD
+    protected void debugDirty() {
+        FileState fileState = fileCache.get(editedFile);
+        if (fileState == null) return;
+        System.out.println(fileState.isDirty());
+    }
+
+    private void newNavBarButton(String path) {
+        Button button = new Button();
+
+        button.setText(new File(path).getName());
+
+        // Store real path
+        button.setUserData(path);
+
+        button.setOnMouseClicked(event -> {
+            loadFileFromCache((String) button.getUserData());
+        });
+
+        navigationBar.getChildren().add(button);
+        navButtons.put(path, button);
+    }
+
+    public void updateNavButtonPath(String oldPath, String newPath) { // TODO: Finish navbar
+        Button button = navButtons.remove(oldPath); // (old key)
+        if (button == null) {
+            printOutput("No navigation button selected");
+            appendOutput("No navigation button selected");
+            return;
+        }
+        button.setText(new File(newPath).getName());
+        button.setUserData(newPath);
+        navButtons.put(newPath, button);
+    }
+
+    private void updateNavButtonMark(String path) {
+        FileState fileState = fileCache.get(path);
+        Button button = navButtons.get(path);
+
+        if (fileState == null) return;
+
+        dirtyMarkerCheck(fileState, button);
+
+    }
+
+    private void dirtyMarkerCheck(FileState fileState, Button button) {
+        if (button == null) return;
+
+        if (fileState.isDirty()) {
+            if (!button.getText().contains("(*)")) { // Dirty (*)
+                button.setText(button.getText() + "(*)");
+            }
+        } else if (button.getText().contains("(*)")) {
+            button.setText(new File((String) button.getUserData()).getName()); // Create a file and get its name
+        }
+    }
+
+    private void updateSyntaxHighlighting(String newText) {
+        codeArea.setStyleSpans(0, highlighterService.computeHighlighting(newText));
+    }
+
+    private void loadFileFromCache(String path) {
+        FileState fileState = fileCache.get(path);
+
+        currentContentTracker = false;
+        codeArea.clear();
+        editedFile = path;
+        printOutput("Loaded cache: " + editedFile);
+        appendOutput("Loaded cache: " + editedFile);
+        codeArea.replaceText(fileState.getContent());
+        currentContentTracker = true;
+    }
+
+    public boolean editedFileIsDirty() {
+        FileState fileState = fileCache.get(editedFile);
+        return fileState != null && fileState.isDirty();
+    }
 }

@@ -26,7 +26,7 @@ public class Main extends Application {
         MainController controller = fxmlLoader.getController();
 
         stage.setOnCloseRequest(event -> {
-            if (controller.isDirty()) {
+            if (controller.editedFileIsDirty()) {
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
 
                 String title = "Unsaved Changes";

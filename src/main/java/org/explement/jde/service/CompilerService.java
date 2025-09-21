@@ -18,8 +18,9 @@ public class CompilerService {
                 .start();
         int compileResult = compile.waitFor();
         if (compileResult != 0) {
-            System.out.println("Compilation failed");
-            return new StringBuilder("Compilation failed");
+            StringBuilder result = new StringBuilder();
+            result.append("Compilation failed with exit code ").append(compileResult);
+            return result;
         }
 
         // Run the compiled class

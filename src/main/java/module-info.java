@@ -1,4 +1,4 @@
-module org.example.jde {
+module org.explement.jde {
     requires javafx.controls;
     requires javafx.fxml;
     requires org.fxmisc.richtext;
@@ -6,7 +6,6 @@ module org.example.jde {
     requires java.desktop;
     requires org.fxmisc.undo;
     requires javafx.graphics;
-    requires org.example.jde;
 
 
     opens org.explement.jde to javafx.fxml;
